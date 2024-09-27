@@ -8,9 +8,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BookOpen, Clock, History, Settings, LogOut } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const [subjects, setSubjects] = useState([]);
+  const [years, setYears] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     const fetchSubjects = async () => {
@@ -18,13 +25,34 @@ export default function Home() {
       const subjectsSnapshot = await getDocs(subjectsCollection);
       const subjectsList = subjectsSnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        name: doc.data().name,
       }));
       setSubjects(subjectsList);
     };
 
     fetchSubjects();
   }, []);
+
+  useEffect(() => {
+    if (selectedSubject) {
+      // Fetch years based on selected subject
+      // This is a placeholder. Implement actual fetching logic.
+      setYears(['2021', '2022', '2023', '2024']);
+    }
+  }, [selectedSubject]);
+
+  useEffect(() => {
+    if (selectedYear) {
+      // Update courses to only include 'First' and 'Second'
+      setCourses(['First', 'Second']);
+    }
+  }, [selectedSubject, selectedYear]);
+
+  const handleStartQuiz = () => {
+    if (selectedSubject && selectedYear && selectedCourse) {
+      router.push(`/quiz?subject=${selectedSubject}&year=${selectedYear}&course=${selectedCourse}`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100" style={{backgroundImage: 'radial-gradient(circle, #ffffff0a 1px, transparent 1px)', backgroundSize: '20px 20px'}}>
@@ -54,7 +82,7 @@ export default function Home() {
           <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 max-w-2xl mx-auto">
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Select>
+                <Select onValueChange={setSelectedSubject}>
                   <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select Subject" />
                   </SelectTrigger>
@@ -66,29 +94,38 @@ export default function Home() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select>
+                <Select onValueChange={setSelectedYear} disabled={!selectedSubject}>
                   <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 11 }, (_, i) => 2014 + i).map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
+                    {years.map((year) => (
+                      <SelectItem key={year} value={year}>
                         {year}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Select>
+                <Select onValueChange={setSelectedCourse} disabled={!selectedYear}>
                   <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select Course" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="first">First Course</SelectItem>
-                    <SelectItem value="second">Second Course</SelectItem>
+                    {courses.map((course) => (
+                      <SelectItem key={course} value={course}>
+                        {course}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-md">Start Quiz</Button>
+              <Button 
+                onClick={handleStartQuiz} 
+                disabled={!selectedSubject || !selectedYear || !selectedCourse}
+                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+              >
+                Start Quiz
+              </Button>
             </CardContent>
           </Card>
         </section>

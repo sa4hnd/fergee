@@ -13,14 +13,9 @@ const firebaseConfig = {
   measurementId: "G-TDEXJ87YJY"
 };
 
-// Initialize Firebase
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
-let analytics;
-
-if (typeof window !== 'undefined') {
-  analytics = getAnalytics(app);
-}
+const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
 export { app, auth, db, analytics };
