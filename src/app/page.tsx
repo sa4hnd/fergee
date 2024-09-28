@@ -1,23 +1,26 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Poppins } from 'next/font/google';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BookOpen, Clock, History, Settings, LogOut } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { BookOpen, Clock, History, Settings, LogOut, Menu, Heart, X } from 'lucide-react';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
 
-export default function Home() {
+const poppins = Poppins({ subsets: ['latin'], weight: ['400', '600', '700'] });
+
+export default function HomePage() {
+  const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [subjects, setSubjects] = useState([]);
-  const [years, setYears] = useState([]);
-  const [courses, setCourses] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
-  const router = useRouter();
+  const [recentQuizzes, setRecentQuizzes] = useState([]);
 
   useEffect(() => {
     const fetchSubjects = async () => {
@@ -30,23 +33,23 @@ export default function Home() {
       setSubjects(subjectsList);
     };
 
+    const fetchRecentQuizzes = async () => {
+      const quizzesCollection = collection(db, 'quizResults');
+      const recentQuizzesQuery = query(quizzesCollection, orderBy('date', 'desc'), limit(3));
+      const quizzesSnapshot = await getDocs(recentQuizzesQuery);
+      const quizzesList = quizzesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setRecentQuizzes(quizzesList);
+    };
+
     fetchSubjects();
+    fetchRecentQuizzes();
   }, []);
 
-  useEffect(() => {
-    if (selectedSubject) {
-      // Fetch years based on selected subject
-      // This is a placeholder. Implement actual fetching logic.
-      setYears(['2021', '2022', '2023', '2024']);
-    }
-  }, [selectedSubject]);
-
-  useEffect(() => {
-    if (selectedYear) {
-      // Update courses to only include 'First' and 'Second'
-      setCourses(['First', 'Second']);
-    }
-  }, [selectedSubject, selectedYear]);
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 2013 }, (_, i) => 2014 + i);
 
   const handleStartQuiz = () => {
     if (selectedSubject && selectedYear && selectedCourse) {
@@ -54,75 +57,97 @@ export default function Home() {
     }
   };
 
+  const formatDate = (date: any) => {
+    if (date instanceof Date) {
+      return date.toLocaleDateString();
+    } else if (date && typeof date.toDate === 'function') {
+      return date.toDate().toLocaleDateString();
+    } else if (date) {
+      return new Date(date).toLocaleDateString();
+    }
+    return 'Unknown Date';
+  };
+
+  const handleQuizClick = (quiz) => {
+    router.push(`/quiz-result?id=${quiz.id}`);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100" style={{backgroundImage: 'radial-gradient(circle, #ffffff0a 1px, transparent 1px)', backgroundSize: '20px 20px'}}>
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
+    <div className={`min-h-screen bg-background ${poppins.className}`}>
+      <header className="sticky top-0 z-10 glass">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-400">QuizMaster</h1>
+          <h1 className="text-2xl font-bold text-primary flex items-center">
+            <Heart className="mr-2 h-6 w-6 fill-primary" /> QuizMaster
+          </h1>
           <nav className="hidden md:flex space-x-4">
-            <Button variant="ghost" className="text-gray-300 hover:text-blue-400 rounded-md">Dashboard</Button>
-            <Button variant="ghost" className="text-gray-300 hover:text-blue-400 rounded-md">My Quizzes</Button>
-            <Button variant="ghost" className="text-gray-300 hover:text-blue-400 rounded-md">Leaderboard</Button>
+            <Button variant="ghost" className="text-primary hover:text-primary-foreground hover:bg-primary rounded-full transition-colors duration-200">Dashboard</Button>
+            <Button variant="ghost" className="text-primary hover:text-primary-foreground hover:bg-primary rounded-full transition-colors duration-200">My Quizzes</Button>
+            <Button variant="ghost" className="text-primary hover:text-primary-foreground hover:bg-primary rounded-full transition-colors duration-200">Leaderboard</Button>
           </nav>
           <div className="flex items-center space-x-4">
             <Avatar>
               <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
               <AvatarFallback>JD</AvatarFallback>
             </Avatar>
-            <Button variant="ghost" size="icon" className="rounded-md">
-              <LogOut className="h-5 w-5 text-gray-300 hover:text-blue-400" />
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <LogOut className="h-5 w-5 text-primary hover:text-primary-foreground transition-colors duration-200" />
+            </Button>
+            <Button variant="ghost" size="icon" className="md:hidden rounded-full" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              {mobileMenuOpen ? <X className="h-5 w-5 text-primary" /> : <Menu className="h-5 w-5 text-primary" />}
             </Button>
           </div>
         </div>
+        {mobileMenuOpen && (
+          <nav className="md:hidden flex flex-col space-y-2 p-4 bg-card border-t border-primary">
+            <Button variant="ghost" className="text-primary hover:text-primary-foreground justify-start rounded-full">Dashboard</Button>
+            <Button variant="ghost" className="text-primary hover:text-primary-foreground justify-start rounded-full">My Quizzes</Button>
+            <Button variant="ghost" className="text-primary hover:text-primary-foreground justify-start rounded-full">Leaderboard</Button>
+          </nav>
+        )}
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <section className="mb-12 text-center">
-          <h2 className="text-3xl font-bold mb-6 text-blue-400">Start a New Quiz</h2>
-          <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-800 max-w-2xl mx-auto">
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <main className="container mx-auto px-4 py-12">
+        <section className="mb-16 text-center">
+          <h2 className="text-4xl font-bold mb-8 text-foreground">Start a New Quiz</h2>
+          <Card className="glass border-primary max-w-2xl mx-auto rounded-3xl">
+            <CardContent className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Select onValueChange={setSelectedSubject}>
-                  <SelectTrigger className="rounded-md">
+                  <SelectTrigger className="rounded-full bg-green-700/50 text-green-100 border-green-600">
                     <SelectValue placeholder="Select Subject" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-green-800 border-green-700">
                     {subjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </SelectItem>
+                      <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Select onValueChange={setSelectedYear} disabled={!selectedSubject}>
-                  <SelectTrigger className="rounded-md">
+                <Select onValueChange={setSelectedYear}>
+                  <SelectTrigger className="rounded-full bg-primary-800/50 text-primary-100 border-primary-700">
                     <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="dropdown-content">
                     {years.map((year) => (
-                      <SelectItem key={year} value={year}>
+                      <SelectItem key={year} value={year.toString()}>
                         {year}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Select onValueChange={setSelectedCourse} disabled={!selectedYear}>
-                  <SelectTrigger className="rounded-md">
+                <Select onValueChange={setSelectedCourse}>
+                  <SelectTrigger className="rounded-full bg-primary-800/50 text-primary-100 border-primary-700">
                     <SelectValue placeholder="Select Course" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((course) => (
-                      <SelectItem key={course} value={course}>
-                        {course}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="dropdown-content">
+                    <SelectItem value="first">First Course</SelectItem>
+                    <SelectItem value="second">Second Course</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button 
-                onClick={handleStartQuiz} 
+              <Button
+                className="w-full mt-8 bg-green-600 hover:bg-green-500 text-green-100 rounded-full shadow-lg"
+                onClick={handleStartQuiz}
                 disabled={!selectedSubject || !selectedYear || !selectedCourse}
-                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
               >
                 Start Quiz
               </Button>
@@ -130,21 +155,21 @@ export default function Home() {
           </Card>
         </section>
 
-        <section className="mb-12 text-center">
-          <h2 className="text-3xl font-bold mb-6 text-blue-400">Recent Quizzes</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
-            {[
-              { title: 'Mathematics 2023', score: '85%', date: '2023-09-15' },
-              { title: 'Science 2022', score: '92%', date: '2023-09-10' },
-              { title: 'History 2021', score: '78%', date: '2023-09-05' },
-            ].map((quiz, index) => (
-              <Card key={index} className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+        <section className="mb-16 text-center">
+          <h2 className="text-4xl font-bold mb-8 text-foreground">Recent Quizzes</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            {recentQuizzes.map((quiz) => (
+              <Card
+                key={quiz.id}
+                className="glass border-primary hover:shadow-lg transition-shadow duration-300 rounded-3xl cursor-pointer"
+                onClick={() => handleQuizClick(quiz)}
+              >
                 <CardHeader>
-                  <CardTitle className="text-blue-400">{quiz.title}</CardTitle>
+                  <CardTitle className="text-card-foreground">{quiz.subject} ({quiz.year})</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold text-green-500">{quiz.score}</p>
-                  <p className="text-sm text-gray-400">{quiz.date}</p>
+                  <p className="text-3xl font-bold text-primary">{quiz.score}%</p>
+                  <p className="text-sm text-muted-foreground mt-2">{formatDate(quiz.date)}</p>
                 </CardContent>
               </Card>
             ))}
@@ -152,20 +177,20 @@ export default function Home() {
         </section>
 
         <section className="text-center">
-          <h2 className="text-3xl font-bold mb-6 text-blue-400">Quick Actions</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
+          <h2 className="text-4xl font-bold mb-8 text-foreground">Quick Actions</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-8 max-w-4xl mx-auto">
             {[
-              { icon: BookOpen, title: 'Study Materials', color: 'bg-purple-600' },
-              { icon: Clock, title: 'Timed Challenges', color: 'bg-green-600' },
-              { icon: History, title: 'Quiz History', color: 'bg-yellow-600' },
-              { icon: Settings, title: 'Account Settings', color: 'bg-red-600' },
+              { icon: BookOpen, title: 'Study Materials', color: 'bg-input' },
+              { icon: Clock, title: 'Timed Challenges', color: 'bg-input' },
+              { icon: History, title: 'Quiz History', color: 'bg-input' },
+              { icon: Settings, title: 'Account Settings', color: 'bg-input' },
             ].map((action, index) => (
-              <Card key={index} className="bg-gray-900/50 backdrop-blur-sm border-gray-800">
+              <Card key={index} className="bg-card border-primary hover:shadow-lg transition-shadow duration-300 rounded-3xl">
                 <CardContent className="p-6 flex flex-col items-center text-center">
                   <div className={`${action.color} p-3 rounded-full mb-4`}>
-                    <action.icon className="h-6 w-6 text-white" />
+                    <action.icon className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-200">{action.title}</h3>
+                  <h3 className="text-lg font-semibold text-primary">{action.title}</h3>
                 </CardContent>
               </Card>
             ))}
@@ -173,9 +198,14 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-gray-800 mt-12 py-6 bg-gray-900/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 text-center text-gray-400">
-          &copy; 2024 QuizMaster. All rights reserved.
+      <footer className="mt-16 py-8 bg-muted">
+        <div className="container mx-auto px-4 text-center text-muted-foreground">
+          <p>&copy; 2024 QuizMaster. All rights reserved.</p>
+          <div className="mt-4 flex justify-center space-x-4">
+            <a href="#" className="text-primary hover:text-primary/80 transition-colors duration-200">Terms of Service</a>
+            <a href="#" className="text-primary hover:text-primary/80 transition-colors duration-200">Privacy Policy</a>
+            <a href="#" className="text-primary hover:text-primary/80 transition-colors duration-200">Contact Us</a>
+          </div>
         </div>
       </footer>
     </div>
