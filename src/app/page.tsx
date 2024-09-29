@@ -16,11 +16,11 @@ const poppins = Poppins({ subsets: ['latin'], weight: ['400', '600', '700'] });
 export default function HomePage() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [subjects, setSubjects] = useState([]);
+  const [subjects, setSubjects] = useState<Array<{ id: string, name: string }>>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
-  const [recentQuizzes, setRecentQuizzes] = useState([]);
+  const [recentQuizzes, setRecentQuizzes] = useState<Array<any>>([]);
 
   useEffect(() => {
     const fetchSubjects = async () => {
@@ -34,14 +34,21 @@ export default function HomePage() {
     };
 
     const fetchRecentQuizzes = async () => {
-      const quizzesCollection = collection(db, 'quizResults');
-      const recentQuizzesQuery = query(quizzesCollection, orderBy('date', 'desc'), limit(3));
-      const quizzesSnapshot = await getDocs(recentQuizzesQuery);
-      const quizzesList = quizzesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setRecentQuizzes(quizzesList);
+      const q = query(collection(db, 'quizResults'), orderBy('date', 'desc'), limit(3));
+      const querySnapshot = await getDocs(q);
+      const quizzes = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          subject: data.subject || 'Unknown',
+          year: data.year || 'N/A',
+          score: data.score || 0,
+          date: data.date,
+          course: data.course || 'N/A'
+        };
+      });
+      console.log("Fetched recent quizzes:", quizzes);
+      setRecentQuizzes(quizzes);
     };
 
     fetchSubjects();
@@ -68,7 +75,7 @@ export default function HomePage() {
     return 'Unknown Date';
   };
 
-  const handleQuizClick = (quiz) => {
+  const handleQuizClick = (quiz: { id: string }) => {
     router.push(`/quiz-result?id=${quiz.id}`);
   };
 
@@ -155,23 +162,18 @@ export default function HomePage() {
           </Card>
         </section>
 
-        <section className="mb-16 text-center">
-          <h2 className="text-4xl font-bold mb-8 text-foreground">Recent Quizzes</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+        <section className="mb-12">
+          <h2 className="text-3xl font-bold text-primary mb-6">Recent Quizzes</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {recentQuizzes.map((quiz) => (
-              <Card
-                key={quiz.id}
-                className="glass border-primary hover:shadow-lg transition-shadow duration-300 rounded-3xl cursor-pointer"
-                onClick={() => handleQuizClick(quiz)}
-              >
-                <CardHeader>
-                  <CardTitle className="text-card-foreground">{quiz.subject} ({quiz.year})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold text-primary">{quiz.score}%</p>
-                  <p className="text-sm text-muted-foreground mt-2">{formatDate(quiz.date)}</p>
-                </CardContent>
-              </Card>
+              <div key={quiz.id} className="bg-card text-card-foreground p-4 rounded-lg shadow" onClick={() => router.push(`/quiz-result?id=${quiz.id}`)}>
+                <p className="text-lg font-semibold">{quiz.subject} ({quiz.year})</p>
+                <p className="text-3xl font-bold text-primary">
+                  {quiz.score !== undefined ? `${quiz.score}%` : 'N/A'}
+                </p>
+                <p className="text-sm text-muted-foreground">{formatDate(quiz.date)}</p>
+                <p className="text-sm text-muted-foreground">Course: {quiz.course}</p>
+              </div>
             ))}
           </div>
         </section>

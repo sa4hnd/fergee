@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Poppins } from 'next/font/google';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import confetti from 'canvas-confetti';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '600', '700'] });
 
@@ -40,10 +41,10 @@ export default function QuizPage() {
   const course = searchParams.get('course');
 
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<{ [key: number]: string }>({});
-  const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
-  const [timeLeft, setTimeLeft] = useState(7200); // 2 hours in seconds
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useLocalStorage<number>(`currentQuestionIndex-${subject}-${year}-${course}`, 0);
+  const [answers, setAnswers] = useLocalStorage<{ [key: number]: string }>(`quizAnswers-${subject}-${year}-${course}`, {});
+  const [flaggedQuestions, setFlaggedQuestions] = useLocalStorage<number[]>(`flaggedQuestions-${subject}-${year}-${course}`, []);
+  const [timeLeft, setTimeLeft] = useLocalStorage<number>(`timeLeft-${subject}-${year}-${course}`, 7200); // 2 hours in seconds
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [quizCompleted, setQuizCompleted] = useState(false);
@@ -52,6 +53,16 @@ export default function QuizPage() {
     totalQuestions: 0,
     correctAnswers: 0,
   });
+  const [quizStarted, setQuizStarted] = useLocalStorage<boolean>(`quizStarted-${subject}-${year}-${course}`, false);
+  const [startTime, setStartTime] = useLocalStorage<string | null>(`startTime-${subject}-${year}-${course}`, null);
+
+  const progress = useMemo(() => {
+    return questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
+  }, [currentQuestionIndex, questions.length]);
+
+  const currentQuestion = useMemo(() => {
+    return questions[currentQuestionIndex] || null;
+  }, [questions, currentQuestionIndex]);
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -76,19 +87,21 @@ export default function QuizPage() {
   }, [subject, year, course]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prevTime) => {
-        if (prevTime <= 1) {
-          clearInterval(timer);
-          handleSubmit();
-          return 0;
-        }
-        return prevTime - 1;
-      });
-    }, 1000);
+    if (quizStarted && startTime) {
+      const timer = setInterval(() => {
+        setTimeLeft((prevTime) => {
+          if (prevTime <= 1) {
+            clearInterval(timer);
+            handleSubmit();
+            return 0;
+          }
+          return prevTime - 1;
+        });
+      }, 1000);
 
-    return () => clearInterval(timer);
-  }, []);
+      return () => clearInterval(timer);
+    }
+  }, [quizStarted, startTime]);
 
   useEffect(() => {
     if (quizCompleted) {
@@ -101,76 +114,84 @@ export default function QuizPage() {
   }, [quizCompleted]);
 
   const handleAnswer = (answer: string) => {
-    setAnswers({ ...answers, [currentQuestionIndex]: answer });
+    setAnswers(prev => ({ ...prev, [currentQuestionIndex]: answer }));
   };
 
   const handleNext = () => {
     if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setCurrentQuestionIndex(prev => prev + 1);
     }
   };
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setCurrentQuestionIndex(prev => prev - 1);
     }
+  };
+
+  const toggleFlagQuestion = () => {
+    setFlaggedQuestions(prev => {
+      if (prev.includes(currentQuestionIndex)) {
+        return prev.filter(index => index !== currentQuestionIndex);
+      } else {
+        return [...prev, currentQuestionIndex];
+      }
+    });
   };
 
   const handleSubmit = async () => {
-    setIsSubmitted(true);
-
-    // Calculate results
-    const totalQuestions = questions.length;
-    const correctAnswers = questions.reduce((acc, question, index) => {
+    const score = questions.reduce((acc, question, index) => {
       return acc + (answers[index] === question.correctAnswer ? 1 : 0);
     }, 0);
-    const score = Math.round((correctAnswers / totalQuestions) * 100);
 
-    setQuizResults({
-      score,
+    const totalQuestions = questions.length;
+    const correctAnswers = score;
+
+    const quizResult = {
+      subject,
+      year,
+      course,
+      score: Math.round((score / totalQuestions) * 100),
       totalQuestions,
       correctAnswers,
-    });
+      date: new Date().toISOString(),
+      timeTaken: 7200 - timeLeft,
+      answers
+    };
 
-    // Save results to Firestore
     try {
-      await addDoc(collection(db, 'quizResults'), {
-        subject,
-        year,
-        course,
-        score,
+      const docRef = await addDoc(collection(db, 'quizResults'), quizResult);
+      setQuizResults({
+        score: Math.round((score / totalQuestions) * 100),
         totalQuestions,
-        correctAnswers,
-        date: new Date(),
-        // Add user ID here when authentication is implemented
+        correctAnswers
       });
+      setQuizCompleted(true);
+      setIsSubmitted(true);
+
+      // Clear local storage after successful submission
+      localStorage.removeItem(`currentQuestionIndex-${subject}-${year}-${course}`);
+      localStorage.removeItem(`quizAnswers-${subject}-${year}-${course}`);
+      localStorage.removeItem(`flaggedQuestions-${subject}-${year}-${course}`);
+      localStorage.removeItem(`timeLeft-${subject}-${year}-${course}`);
+      localStorage.removeItem(`quizStarted-${subject}-${year}-${course}`);
+      localStorage.removeItem(`startTime-${subject}-${year}-${course}`);
+
+      router.push(`/quiz-result?id=${docRef.id}`);
     } catch (error) {
-      console.error("Error saving quiz results:", error);
+      console.error("Error submitting quiz: ", error);
     }
-
-    setQuizCompleted(true);
   };
 
-  const toggleFlagQuestion = (index: number) => {
-    setFlaggedQuestions(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
-      } else {
-        newSet.add(index);
-      }
-      return newSet;
-    });
+  const startQuiz = () => {
+    setQuizStarted(true);
+    setStartTime(new Date().toISOString());
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
-  const progress = ((Object.keys(answers).length) / questions.length) * 100;
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   if (isLoading) {
@@ -178,6 +199,25 @@ export default function QuizPage() {
       <div className="flex flex-col items-center justify-center h-screen bg-background">
         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
         <p className="mt-4 text-xl font-semibold text-primary">{motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]}</p>
+      </div>
+    );
+  }
+
+  if (!quizStarted) {
+    return (
+      <div className={`min-h-screen bg-background ${poppins.className} flex items-center justify-center`}>
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold text-center">Ready to Start?</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-center mb-4">You're about to start a quiz on {subject} ({year}, {course}).</p>
+            <p className="text-center mb-4">You'll have 2 hours to complete the quiz.</p>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={startQuiz} className="w-full">Start Quiz</Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }
@@ -195,6 +235,9 @@ export default function QuizPage() {
                 <p className="text-6xl font-bold text-primary mb-4">{quizResults.score}%</p>
                 <p className="text-xl text-foreground mb-2">
                   You answered {quizResults.correctAnswers} out of {quizResults.totalQuestions} questions correctly.
+                </p>
+                <p className="text-lg text-muted-foreground mb-2">
+                  Time taken: {Math.floor(quizResults.timeTaken / 60)}m {Math.round(quizResults.timeTaken % 60)}s
                 </p>
                 <p className="text-lg text-muted-foreground italic">
                   {motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]}
@@ -255,6 +298,10 @@ export default function QuizPage() {
     );
   }
 
+  if (!currentQuestion) {
+    return <div>No questions available</div>;
+  }
+
   return (
     <div className={`min-h-screen bg-background ${poppins.className}`}>
       <div className="container mx-auto px-4 py-8">
@@ -269,10 +316,12 @@ export default function QuizPage() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => toggleFlagQuestion(currentQuestionIndex)}
+                onClick={() => toggleFlagQuestion()}
                 className={cn(
                   "transition-colors duration-200 rounded-full",
-                  flaggedQuestions.has(currentQuestionIndex) ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                  flaggedQuestions.includes(currentQuestionIndex)
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/90"
                 )}
               >
                 <Flag className="h-4 w-4" />
@@ -343,7 +392,7 @@ export default function QuizPage() {
                             "w-10 h-10 p-0 transition-colors duration-200 rounded-full",
                             currentQuestionIndex === index && "border-primary",
                             answers[index] && "bg-primary hover:bg-primary/90 text-primary-foreground",
-                            flaggedQuestions.has(index) && "bg-accent hover:bg-accent/90 text-accent-foreground"
+                            flaggedQuestions.includes(index) && "bg-accent hover:bg-accent/90 text-accent-foreground"
                           )}
                         >
                           {index + 1}
@@ -360,7 +409,7 @@ export default function QuizPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Flagged</span>
-                      <span>{flaggedQuestions.size}</span>
+                      <span>{flaggedQuestions.length}</span>
                     </div>
                   </div>
                 </CardFooter>
