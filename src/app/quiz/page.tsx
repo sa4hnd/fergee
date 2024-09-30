@@ -4,12 +4,24 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Poppins } from 'next/font/google';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronLeft, ChevronRight, Flag, Clock, CheckCircle } from 'lucide-react';
-import { cn } from "@/lib/utils";
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  Clock,
+  CheckCircle,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import confetti from 'canvas-confetti';
@@ -26,10 +38,10 @@ interface Question {
 
 const motivationalQuotes = [
   "Believe you can and you're halfway there.",
-  "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-  "The only way to do great work is to love what you do.",
-  "Strive not to be a success, but rather to be of value.",
-  "The future belongs to those who believe in the beauty of their dreams."
+  'Success is not final, failure is not fatal: it is the courage to continue that counts.',
+  'The only way to do great work is to love what you do.',
+  'Strive not to be a success, but rather to be of value.',
+  'The future belongs to those who believe in the beauty of their dreams.',
 ];
 
 export default function QuizPage() {
@@ -41,7 +53,9 @@ export default function QuizPage() {
 
   const clearQuizLocalStorage = () => {
     if (subject && year && course) {
-      localStorage.removeItem(`currentQuestionIndex-${subject}-${year}-${course}`);
+      localStorage.removeItem(
+        `currentQuestionIndex-${subject}-${year}-${course}`,
+      );
       localStorage.removeItem(`quizAnswers-${subject}-${year}-${course}`);
       localStorage.removeItem(`flaggedQuestions-${subject}-${year}-${course}`);
       localStorage.removeItem(`quizStarted-${subject}-${year}-${course}`);
@@ -50,17 +64,18 @@ export default function QuizPage() {
   };
 
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useLocalStorage<number>(
-    `currentQuestionIndex-${subject}-${year}-${course}`,
-    () => (quizStarted ? 0 : -1)
-  );
+  const [currentQuestionIndex, setCurrentQuestionIndex] =
+    useLocalStorage<number>(
+      `currentQuestionIndex-${subject}-${year}-${course}`,
+      () => (quizStarted ? 0 : -1),
+    );
   const [answers, setAnswers] = useLocalStorage<{ [key: number]: string }>(
     `quizAnswers-${subject}-${year}-${course}`,
-    () => (quizStarted ? {} : {})
+    () => (quizStarted ? {} : {}),
   );
   const [flaggedQuestions, setFlaggedQuestions] = useLocalStorage<number[]>(
     `flaggedQuestions-${subject}-${year}-${course}`,
-    () => (quizStarted ? [] : [])
+    () => (quizStarted ? [] : []),
   );
   const [timeLeft, setTimeLeft] = useState<number>(7200); // 2 hours in seconds
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -71,11 +86,19 @@ export default function QuizPage() {
     totalQuestions: 0,
     correctAnswers: 0,
   });
-  const [quizStarted, setQuizStarted] = useLocalStorage<boolean>(`quizStarted-${subject}-${year}-${course}`, false);
-  const [startTime, setStartTime] = useLocalStorage<string | null>(`startTime-${subject}-${year}-${course}`, null);
+  const [quizStarted, setQuizStarted] = useLocalStorage<boolean>(
+    `quizStarted-${subject}-${year}-${course}`,
+    false,
+  );
+  const [startTime, setStartTime] = useLocalStorage<string | null>(
+    `startTime-${subject}-${year}-${course}`,
+    null,
+  );
 
   const progress = useMemo(() => {
-    return questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
+    return questions.length > 0
+      ? ((currentQuestionIndex + 1) / questions.length) * 100
+      : 0;
   }, [currentQuestionIndex, questions.length]);
 
   const currentQuestion = useMemo(() => {
@@ -90,13 +113,16 @@ export default function QuizPage() {
           collection(db, 'questions'),
           where('subject', '==', subject),
           where('year', '==', year),
-          where('course', '==', course)
+          where('course', '==', course),
         );
         const querySnapshot = await getDocs(q);
-        const fetchedQuestions = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Question));
+        const fetchedQuestions = querySnapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            }) as Question,
+        );
         setQuestions(fetchedQuestions);
         setIsLoading(false);
         setQuizStarted(false); // Reset quiz started state
@@ -131,31 +157,31 @@ export default function QuizPage() {
       confetti({
         particleCount: 100,
         spread: 70,
-        origin: { y: 0.6 }
+        origin: { y: 0.6 },
       });
     }
   }, [quizCompleted]);
 
   const handleAnswer = (answer: string) => {
-    setAnswers(prev => ({ ...prev, [currentQuestionIndex]: answer }));
+    setAnswers((prev) => ({ ...prev, [currentQuestionIndex]: answer }));
   };
 
   const handleNext = () => {
     if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
+      setCurrentQuestionIndex((prev) => prev + 1);
     }
   };
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
+      setCurrentQuestionIndex((prev) => prev - 1);
     }
   };
 
   const toggleFlagQuestion = () => {
-    setFlaggedQuestions(prev => {
+    setFlaggedQuestions((prev) => {
       if (prev.includes(currentQuestionIndex)) {
-        return prev.filter(index => index !== currentQuestionIndex);
+        return prev.filter((index) => index !== currentQuestionIndex);
       } else {
         return [...prev, currentQuestionIndex];
       }
@@ -163,63 +189,63 @@ export default function QuizPage() {
   };
 
   const handleSubmit = async () => {
-    const endTime = new Date();
-    const timeTaken = startTime ? (endTime.getTime() - new Date(startTime).getTime()) / 1000 : 0;
-
-    let correctAnswers = 0;
-    questions.forEach((question, index) => {
-      if (answers[index] === question.correctAnswer) {
-        correctAnswers++;
-      }
-    });
-
-    const score = (correctAnswers / questions.length) * 100;
-
-    const quizResultData = {
-      subject,
-      year,
-      course,
-      score,
-      totalQuestions: questions.length,
-      correctAnswers,
-      timeTaken,
-      date: new Date(),
-      answers,
-      questions: questions.map(q => ({
-        id: q.id,
-        text: q.text,
-        options: q.options,
-        correctAnswer: q.correctAnswer
-      }))
-    };
-
     try {
-      const docRef = await addDoc(collection(db, 'quizResults'), quizResultData);
-      setIsSubmitted(true);
-      setQuizCompleted(true);
-      setQuizResults({
+      const endTime = new Date().toISOString();
+      const timeTaken = startTime
+        ? Math.floor(
+            (new Date(endTime).getTime() - new Date(startTime).getTime()) /
+              1000,
+          )
+        : 0;
+
+      const correctAnswers = questions.filter(
+        (q, index) => answers[index] === q.correctAnswer,
+      ).length;
+      const score = Math.round((correctAnswers / questions.length) * 100);
+
+      const quizResultData = {
+        subject: subject || '',
+        year: year || '',
+        course: course || '',
         score,
         totalQuestions: questions.length,
         correctAnswers,
-      });
+        date: endTime,
+        timeTaken,
+        answers: Object.fromEntries(
+          Object.entries(answers).map(([key, value]) => [key, value || '']),
+        ),
+        questions: questions.map((q) => ({
+          id: q.id,
+          text: q.text,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+        })),
+      };
 
-      // Clear local storage
+      // Log the quiz data before submission
+      console.log('Quiz data to be submitted:', quizResultData);
+
+      // Check for any undefined values
+      const undefinedFields = Object.entries(quizResultData).filter(
+        ([key, value]) => value === undefined,
+      );
+      if (undefinedFields.length > 0) {
+        console.error('Undefined fields:', undefinedFields);
+        throw new Error('Cannot submit quiz with undefined values');
+      }
+
+      const docRef = await addDoc(
+        collection(db, 'quizResults'),
+        quizResultData,
+      );
+      console.log('Quiz result saved with ID:', docRef.id);
+      setQuizCompleted(true);
       clearQuizLocalStorage();
-
-      // Show confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-
-      // Navigate to the quiz result page after a short delay
-      setTimeout(() => {
-        router.push(`/quiz-result?id=${docRef.id}`);
-      }, 3000);
+      router.push(`/quiz-result?id=${docRef.id}`);
     } catch (error) {
-      console.error("Error submitting quiz: ", error);
-      // Handle error (e.g., show an error message to the user)
+      console.error('Error submitting quiz:', error);
+      // Handle the error appropriately (e.g., show an error message to the user)
     }
   };
 
@@ -241,26 +267,42 @@ export default function QuizPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
-        <p className="mt-4 text-xl font-semibold text-primary">{motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]}</p>
+      <div className='flex flex-col items-center justify-center h-screen bg-background'>
+        <div className='animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary'></div>
+        <p className='mt-4 text-xl font-semibold text-primary'>
+          {
+            motivationalQuotes[
+              Math.floor(Math.random() * motivationalQuotes.length)
+            ]
+          }
+        </p>
       </div>
     );
   }
 
   if (!quizStarted) {
     return (
-      <div className={`min-h-screen bg-background ${poppins.className} flex items-center justify-center`}>
-        <Card className="w-full max-w-md">
+      <div
+        className={`min-h-screen bg-background ${poppins.className} flex items-center justify-center`}
+      >
+        <Card className='w-full max-w-md'>
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Ready to Start?</CardTitle>
+            <CardTitle className='text-2xl font-bold text-center'>
+              Ready to Start?
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-center mb-4">You're about to start a quiz on {subject} ({year}, {course}).</p>
-            <p className="text-center mb-4">You'll have 2 hours to complete the quiz.</p>
+            <p className='text-center mb-4'>
+              You're about to start a quiz on {subject} ({year}, {course}).
+            </p>
+            <p className='text-center mb-4'>
+              You'll have 2 hours to complete the quiz.
+            </p>
           </CardContent>
           <CardFooter>
-            <Button onClick={startQuiz} className="w-full">Start Quiz</Button>
+            <Button onClick={startQuiz} className='w-full'>
+              Start Quiz
+            </Button>
           </CardFooter>
         </Card>
       </div>
@@ -270,38 +312,48 @@ export default function QuizPage() {
   if (quizCompleted) {
     return (
       <div className={`min-h-screen bg-background ${poppins.className}`}>
-        <div className="container mx-auto px-4 py-8">
-          <Card className="glass border-primary rounded-3xl">
+        <div className='container mx-auto px-4 py-8'>
+          <Card className='glass border-primary rounded-3xl'>
             <CardHeader>
-              <CardTitle className="text-3xl font-bold text-primary">Quiz Results</CardTitle>
+              <CardTitle className='text-3xl font-bold text-primary'>
+                Quiz Results
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center mb-8">
-                <p className="text-6xl font-bold text-primary mb-4">{quizResults.score}%</p>
-                <p className="text-xl text-foreground mb-2">
-                  You answered {quizResults.correctAnswers} out of {quizResults.totalQuestions} questions correctly.
+              <div className='text-center mb-8'>
+                <p className='text-6xl font-bold text-primary mb-4'>
+                  {quizResults.score}%
                 </p>
-                <p className="text-lg text-muted-foreground mb-2">
-                  Time taken: {Math.floor(quizResults.timeTaken / 60)}m {Math.round(quizResults.timeTaken % 60)}s
+                <p className='text-xl text-foreground mb-2'>
+                  You answered {quizResults.correctAnswers} out of{' '}
+                  {quizResults.totalQuestions} questions correctly.
                 </p>
-                <p className="text-lg text-muted-foreground italic">
-                  {motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]}
+                <p className='text-lg text-muted-foreground mb-2'>
+                  Time taken: {Math.floor(quizResults.timeTaken / 60)}m{' '}
+                  {Math.round(quizResults.timeTaken % 60)}s
+                </p>
+                <p className='text-lg text-muted-foreground italic'>
+                  {
+                    motivationalQuotes[
+                      Math.floor(Math.random() * motivationalQuotes.length)
+                    ]
+                  }
                 </p>
               </div>
-              <ScrollArea className="h-[300px] w-full">
-                <div className="grid grid-cols-5 gap-2">
+              <ScrollArea className='h-[300px] w-full'>
+                <div className='grid grid-cols-5 gap-2'>
                   {questions.map((question, index) => (
                     <Button
                       key={index}
-                      variant="outline"
-                      size="icon"
+                      variant='outline'
+                      size='icon'
                       onClick={() => setCurrentQuestionIndex(index)}
                       className={cn(
-                        "w-10 h-10 p-0 transition-colors duration-200 rounded-full",
+                        'w-10 h-10 p-0 transition-colors duration-200 rounded-full',
                         answers[index] === question.correctAnswer
-                          ? "bg-green-500 hover:bg-green-600 text-white"
-                          : "bg-red-500 hover:bg-red-600 text-white",
-                        currentQuestionIndex === index && "ring-2 ring-primary"
+                          ? 'bg-green-500 hover:bg-green-600 text-white'
+                          : 'bg-red-500 hover:bg-red-600 text-white',
+                        currentQuestionIndex === index && 'ring-2 ring-primary',
                       )}
                     >
                       {index + 1}
@@ -309,29 +361,36 @@ export default function QuizPage() {
                   ))}
                 </div>
               </ScrollArea>
-              <div className="mt-8">
-                <h3 className="text-xl font-semibold text-primary mb-4">Question Review</h3>
-                <div className="bg-card p-4 rounded-lg">
-                  <p className="text-lg font-medium text-card-foreground mb-2">{questions[currentQuestionIndex].text}</p>
-                  {questions[currentQuestionIndex].options.map((option, index) => (
-                    <p
-                      key={index}
-                      className={cn(
-                        "py-2 px-4 rounded-md mb-2",
-                        option === questions[currentQuestionIndex].correctAnswer
-                          ? "bg-green-100 text-green-800"
-                          : option === answers[currentQuestionIndex]
-                            ? "bg-red-100 text-red-800"
-                            : "bg-secondary text-secondary-foreground"
-                      )}
-                    >
-                      {option}
-                    </p>
-                  ))}
+              <div className='mt-8'>
+                <h3 className='text-xl font-semibold text-primary mb-4'>
+                  Question Review
+                </h3>
+                <div className='bg-card p-4 rounded-lg'>
+                  <p className='text-lg font-medium text-card-foreground mb-2'>
+                    {questions[currentQuestionIndex].text}
+                  </p>
+                  {questions[currentQuestionIndex].options.map(
+                    (option, index) => (
+                      <p
+                        key={index}
+                        className={cn(
+                          'py-2 px-4 rounded-md mb-2',
+                          option ===
+                            questions[currentQuestionIndex].correctAnswer
+                            ? 'bg-green-100 text-green-800'
+                            : option === answers[currentQuestionIndex]
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-secondary text-secondary-foreground',
+                        )}
+                      >
+                        {option}
+                      </p>
+                    ),
+                  )}
                 </div>
               </div>
               <Button
-                className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full"
+                className='mt-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full'
                 onClick={() => router.push('/')}
               >
                 Return to Dashboard
@@ -349,34 +408,36 @@ export default function QuizPage() {
 
   return (
     <div className={`min-h-screen bg-background ${poppins.className}`}>
-      <div className="container mx-auto px-4 py-8">
-        <Card className="glass border-primary rounded-3xl">
-          <CardHeader className="flex flex-col sm:flex-row justify-between items-center">
-            <CardTitle className="text-3xl font-bold text-primary mb-4 sm:mb-0">Quiz: {subject} ({year}, {course})</CardTitle>
-            <div className="flex items-center space-x-4">
-              <div className="text-lg font-semibold text-primary flex items-center">
-                <Clock className="mr-2 h-5 w-5" />
+      <div className='container mx-auto px-4 py-8'>
+        <Card className='glass border-primary rounded-3xl'>
+          <CardHeader className='flex flex-col sm:flex-row justify-between items-center'>
+            <CardTitle className='text-3xl font-bold text-primary mb-4 sm:mb-0'>
+              Quiz: {subject} ({year}, {course})
+            </CardTitle>
+            <div className='flex items-center space-x-4'>
+              <div className='text-lg font-semibold text-primary flex items-center'>
+                <Clock className='mr-2 h-5 w-5' />
                 {formatTime(timeLeft)}
               </div>
               <Button
-                variant="outline"
-                size="icon"
+                variant='outline'
+                size='icon'
                 onClick={() => toggleFlagQuestion()}
                 className={cn(
-                  "transition-colors duration-200 rounded-full",
+                  'transition-colors duration-200 rounded-full',
                   flaggedQuestions.includes(currentQuestionIndex)
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/90',
                 )}
               >
-                <Flag className="h-4 w-4" />
+                <Flag className='h-4 w-4' />
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="flex flex-col lg:flex-row gap-8">
-            <div className="lg:w-3/4">
-              <Progress value={progress} className="mb-8 h-2 bg-secondary" />
-              <AnimatePresence mode="wait">
+          <CardContent className='flex flex-col lg:flex-row gap-8'>
+            <div className='lg:w-3/4'>
+              <Progress value={progress} className='mb-8 h-2 bg-secondary' />
+              <AnimatePresence mode='wait'>
                 <motion.div
                   key={currentQuestionIndex}
                   initial={{ opacity: 0, x: 20 }}
@@ -384,17 +445,19 @@ export default function QuizPage() {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <h2 className="text-2xl font-semibold mb-4 text-primary">{currentQuestion.text}</h2>
-                  <div className="space-y-4">
+                  <h2 className='text-2xl font-semibold mb-4 text-primary'>
+                    {currentQuestion.text}
+                  </h2>
+                  <div className='space-y-4'>
                     {currentQuestion.options.map((option, index) => (
                       <Button
                         key={index}
-                        variant="outline"
+                        variant='outline'
                         className={cn(
-                          "w-full justify-start text-left py-6 px-4 rounded-xl transition-colors duration-200",
+                          'w-full justify-start text-left py-6 px-4 rounded-xl transition-colors duration-200',
                           answers[currentQuestionIndex] === option
-                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                            : "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/90',
                         )}
                         onClick={() => handleAnswer(option)}
                       >
@@ -404,40 +467,54 @@ export default function QuizPage() {
                   </div>
                 </motion.div>
               </AnimatePresence>
-              <div className="flex justify-between mt-8">
-                <Button onClick={handlePrevious} disabled={currentQuestionIndex === 0} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full">
-                  <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+              <div className='flex justify-between mt-8'>
+                <Button
+                  onClick={handlePrevious}
+                  disabled={currentQuestionIndex === 0}
+                  className='bg-primary hover:bg-primary/90 text-primary-foreground rounded-full'
+                >
+                  <ChevronLeft className='mr-2 h-4 w-4' /> Previous
                 </Button>
                 {currentQuestionIndex === questions.length - 1 ? (
-                  <Button onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full">
+                  <Button
+                    onClick={handleSubmit}
+                    className='bg-primary hover:bg-primary/90 text-primary-foreground rounded-full'
+                  >
                     Submit Quiz
                   </Button>
                 ) : (
-                  <Button onClick={handleNext} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full">
-                    Next <ChevronRight className="ml-2 h-4 w-4" />
+                  <Button
+                    onClick={handleNext}
+                    className='bg-primary hover:bg-primary/90 text-primary-foreground rounded-full'
+                  >
+                    Next <ChevronRight className='ml-2 h-4 w-4' />
                   </Button>
                 )}
               </div>
             </div>
-            <div className="lg:w-1/4">
-              <Card className="glass border-primary rounded-3xl">
+            <div className='lg:w-1/4'>
+              <Card className='glass border-primary rounded-3xl'>
                 <CardHeader>
-                  <CardTitle className="text-xl font-semibold text-primary">Question Navigator</CardTitle>
+                  <CardTitle className='text-xl font-semibold text-primary'>
+                    Question Navigator
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[300px] w-full">
-                    <div className="grid grid-cols-5 gap-2">
+                  <ScrollArea className='h-[300px] w-full'>
+                    <div className='grid grid-cols-5 gap-2'>
                       {questions.map((_, index) => (
                         <Button
                           key={index}
-                          variant="outline"
-                          size="icon"
+                          variant='outline'
+                          size='icon'
                           onClick={() => setCurrentQuestionIndex(index)}
                           className={cn(
-                            "w-10 h-10 p-0 transition-colors duration-200 rounded-full",
-                            currentQuestionIndex === index && "border-primary",
-                            answers[index] && "bg-primary hover:bg-primary/90 text-primary-foreground",
-                            flaggedQuestions.includes(index) && "bg-accent hover:bg-accent/90 text-accent-foreground"
+                            'w-10 h-10 p-0 transition-colors duration-200 rounded-full',
+                            currentQuestionIndex === index && 'border-primary',
+                            answers[index] &&
+                              'bg-primary hover:bg-primary/90 text-primary-foreground',
+                            flaggedQuestions.includes(index) &&
+                              'bg-accent hover:bg-accent/90 text-accent-foreground',
                           )}
                         >
                           {index + 1}
@@ -447,12 +524,14 @@ export default function QuizPage() {
                   </ScrollArea>
                 </CardContent>
                 <CardFooter>
-                  <div className="w-full text-sm text-muted-foreground">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className='w-full text-sm text-muted-foreground'>
+                    <div className='flex items-center justify-between mb-2'>
                       <span>Answered</span>
-                      <span>{Object.keys(answers).length} / {questions.length}</span>
+                      <span>
+                        {Object.keys(answers).length} / {questions.length}
+                      </span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className='flex items-center justify-between'>
                       <span>Flagged</span>
                       <span>{flaggedQuestions.length}</span>
                     </div>
@@ -467,22 +546,25 @@ export default function QuizPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-background/50 flex items-center justify-center"
+          className='fixed inset-0 bg-background/50 flex items-center justify-center'
         >
-          <Card className="glass border-primary max-w-md w-full rounded-3xl">
+          <Card className='glass border-primary max-w-md w-full rounded-3xl'>
             <CardHeader>
-              <CardTitle className="text-2xl font-bold text-primary">Quiz Submitted</CardTitle>
+              <CardTitle className='text-2xl font-bold text-primary'>
+                Quiz Submitted
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col items-center">
-                <CheckCircle className="text-primary w-16 h-16 mb-4" />
-                <p className="text-center text-foreground">
-                  Your quiz has been successfully submitted. Thank you for completing the test!
+              <div className='flex flex-col items-center'>
+                <CheckCircle className='text-primary w-16 h-16 mb-4' />
+                <p className='text-center text-foreground'>
+                  Your quiz has been successfully submitted. Thank you for
+                  completing the test!
                 </p>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-center">
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full">
+            <CardFooter className='flex justify-center'>
+              <Button className='bg-primary hover:bg-primary/90 text-primary-foreground rounded-full'>
                 Return to Dashboard
               </Button>
             </CardFooter>

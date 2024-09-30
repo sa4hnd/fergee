@@ -1,17 +1,27 @@
-'use client'
+'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Share2, Download } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import html2canvas from 'html2canvas';
+import { motion } from 'framer-motion';
+import { Share2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import dynamic from 'next/dynamic';
+
+const Html2Canvas = dynamic(() => import('html2canvas'), { ssr: false });
+
+// Client-side only wrapper
+const ClientOnly = ({ children }) => {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+  if (!hasMounted) {
+    return null;
+  }
+  return children;
+};
 
 interface QuizResult {
   id: string;
@@ -53,7 +63,8 @@ export default function QuizResultPage() {
       try {
         const quizDoc = await getDoc(doc(db, 'quizResults', quizId));
         if (quizDoc.exists()) {
-          setQuizResult({ id: quizDoc.id, ...quizDoc.data() } as QuizResult);
+          const data = { id: quizDoc.id, ...quizDoc.data() } as QuizResult;
+          setQuizResult(data);
         } else {
           setError('Quiz result not found');
         }
@@ -69,193 +80,282 @@ export default function QuizResultPage() {
   }, [quizId]);
 
   const handleShare = async () => {
-    const websiteUrl = 'https://quizmaster.com'; // Replace with your actual website URL
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Check out my quiz result on QuizMaster!',
-          text: `I scored ${quizResult?.score}% on the ${quizResult?.subject} quiz!`,
-          url: websiteUrl,
-        });
-      } catch (error) {
-        console.error('Error sharing:', error);
-      }
-    } else {
-      // Fallback for browsers that don't support Web Share API
-      window.open(`https://twitter.com/intent/tweet?text=I scored ${quizResult?.score}% on the ${quizResult?.subject} quiz at QuizMaster!&url=${websiteUrl}`, '_blank');
-    }
+    // Implement share functionality
   };
 
   const handleDownload = async () => {
-    const resultElement = document.getElementById('quiz-result');
-    if (resultElement) {
-      const canvas = await html2canvas(resultElement, {
-        backgroundColor: null,
-        scale: 2,
-      });
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        // Add semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Add watermark
-        ctx.font = '20px Arial';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('QuizMaster.com', canvas.width / 2, canvas.height - 30);
+    if (quizResult) {
+      try {
+        const element = document.getElementById('quiz-result');
+        if (element) {
+          const canvas = await Html2Canvas(element);
+          const dataURL = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.href = dataURL;
+          link.download = `quiz_result_${quizResult.id}.png`;
+          link.click();
+        }
+      } catch (error) {
+        console.error('Failed to generate image:', error);
       }
-      const dataUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = 'quiz-result.png';
-      link.click();
     }
+  };
+
+  const handleNextQuestion = () => {
+    if (quizResult && currentQuestionIndex < quizResult.totalQuestions - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  };
+
+  const handlePrevQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 flex items-center justify-center h-screen">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center p-6">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary mb-4"></div>
-            <p className="text-lg font-semibold text-primary">Loading quiz result...</p>
-          </CardContent>
-        </Card>
+      <div className='flex justify-center items-center h-screen'>
+        Loading...
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8 flex items-center justify-center h-screen">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center p-6">
-            <p className="text-lg font-semibold text-red-500 mb-4">Error: {error}</p>
-            <Button onClick={() => router.push('/')} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Back to Home
-            </Button>
-          </CardContent>
-        </Card>
+      <div className='flex justify-center items-center h-screen text-red-500'>
+        {error}
       </div>
     );
   }
 
-  if (!quizResult || !quizResult.questions || quizResult.questions.length === 0) {
+  if (!quizResult) {
     return (
-      <div className="container mx-auto px-4 py-8 flex items-center justify-center h-screen">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center p-6">
-            <p className="text-lg font-semibold text-primary mb-4">No quiz result data available</p>
-            <Button onClick={() => router.push('/')} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Back to Home
-            </Button>
-          </CardContent>
-        </Card>
+      <div className='flex justify-center items-center h-screen'>
+        No quiz result found
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <Card className="glass border-primary rounded-3xl" id="quiz-result">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold text-primary">Quiz Result</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold mb-2">Score: {quizResult.score}%</h2>
-            <Progress value={quizResult.score} className="w-full" />
-            <p className="mt-2">Correct Answers: {quizResult.correctAnswers} / {quizResult.totalQuestions}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div>
-              <p className="text-sm text-muted-foreground">Subject</p>
-              <p className="font-semibold">{quizResult.subject}</p>
+    <ClientOnly>
+      <div className='min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-white p-8 flex items-center justify-center font-sans'>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className='w-full max-w-4xl bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden'
+          id='quiz-result'
+        >
+          <div className='p-8'>
+            <h1 className='text-5xl font-bold mb-8 text-center bg-gradient-to-r from-green-400 to-blue-500 text-transparent bg-clip-text'>
+              Quiz Result
+            </h1>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-8 mb-8'>
+              <motion.div
+                className='bg-gray-100 dark:bg-gray-700 rounded-2xl p-6 shadow-lg'
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+              >
+                <p className='text-xl font-semibold mb-2'>Score</p>
+                <div className='text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500'>
+                  {quizResult.score.toFixed(2)}%
+                </div>
+              </motion.div>
+              <motion.div
+                className='bg-gray-100 dark:bg-gray-700 rounded-2xl p-6 shadow-lg'
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+              >
+                <p className='text-xl font-semibold mb-2'>Correct Answers</p>
+                <div className='text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500'>
+                  {quizResult.correctAnswers} / {quizResult.totalQuestions}
+                </div>
+              </motion.div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Year</p>
-              <p className="font-semibold">{quizResult.year}</p>
+            <div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-8'>
+              {[
+                { label: 'Subject', value: quizResult.subject },
+                { label: 'Year', value: quizResult.year },
+                { label: 'Course', value: quizResult.course },
+                { label: 'Date Taken', value: formatDate(quizResult.date) },
+              ].map((item, index) => (
+                <motion.div
+                  key={index}
+                  className='bg-gray-100 dark:bg-gray-700 rounded-xl p-4 shadow-md'
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                >
+                  <p className='text-sm text-gray-500 dark:text-gray-400'>
+                    {item.label}
+                  </p>
+                  <p className='text-lg font-semibold'>{item.value}</p>
+                </motion.div>
+              ))}
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Course</p>
-              <p className="font-semibold">{quizResult.course}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Date Taken</p>
-              <p className="font-semibold">{new Date(quizResult.date).toLocaleDateString()}</p>
-            </div>
-          </div>
-          <div className="flex flex-col md:flex-row gap-8">
-            <div className="w-full md:w-3/4">
-              <h3 className="text-xl font-semibold mb-4">Question Details</h3>
-              <div className="bg-card p-4 rounded-lg">
-                {quizResult.questions[currentQuestionIndex] && (
-                  <>
-                    <p className="font-semibold mb-2">Question {currentQuestionIndex + 1}</p>
-                    <p className="mb-4">{quizResult.questions[currentQuestionIndex].text}</p>
-                    {quizResult.questions[currentQuestionIndex].options.map((option, optionIndex) => (
-                      <div
-                        key={optionIndex}
-                        className={cn(
-                          "p-2 rounded-md mb-2",
-                          option === quizResult.questions[currentQuestionIndex].correctAnswer
-                            ? "bg-green-100 text-green-800"
-                            : option === quizResult.answers[currentQuestionIndex.toString()]
-                              ? "bg-red-100 text-red-800"
-                              : "bg-gray-100 text-gray-800"
-                        )}
+            <motion.div
+              className='mb-8 bg-gray-100 dark:bg-gray-700 rounded-2xl p-6 shadow-lg'
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h2 className='text-2xl font-bold mb-4'>Question Details</h2>
+              <div className='space-y-4'>
+                <p className='text-xl font-semibold'>
+                  Question {currentQuestionIndex + 1}
+                </p>
+                <p className='text-lg mb-4'>
+                  {quizResult.questions[currentQuestionIndex].text}
+                </p>
+                <div className='space-y-3'>
+                  {quizResult.questions[currentQuestionIndex].options.map(
+                    (option, index) => (
+                      <motion.div
+                        key={index}
+                        className={`p-3 rounded-lg ${
+                          option ===
+                          quizResult.questions[currentQuestionIndex]
+                            .correctAnswer
+                            ? 'bg-green-500 text-white'
+                            : option ===
+                                quizResult.answers[
+                                  currentQuestionIndex.toString()
+                                ]
+                              ? 'bg-red-500 text-white'
+                              : 'bg-gray-200 dark:bg-gray-600'
+                        }`}
+                        whileHover={{ scale: 1.02 }}
+                        transition={{ type: 'spring', stiffness: 300 }}
                       >
                         {option}
-                        {option === quizResult.questions[currentQuestionIndex].correctAnswer && " ✓"}
-                        {option === quizResult.answers[currentQuestionIndex.toString()] && option !== quizResult.questions[currentQuestionIndex].correctAnswer && " ✗"}
-                      </div>
-                    ))}
-                  </>
-                )}
+                        {option ===
+                          quizResult.questions[currentQuestionIndex]
+                            .correctAnswer && (
+                          <motion.span
+                            className='ml-2 inline-block'
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 500,
+                              delay: 0.2,
+                            }}
+                          >
+                            ✓
+                          </motion.span>
+                        )}
+                        {option ===
+                          quizResult.answers[currentQuestionIndex.toString()] &&
+                          option !==
+                            quizResult.questions[currentQuestionIndex]
+                              .correctAnswer && (
+                            <motion.span
+                              className='ml-2 inline-block'
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{
+                                type: 'spring',
+                                stiffness: 500,
+                                delay: 0.2,
+                              }}
+                            >
+                              ✗
+                            </motion.span>
+                          )}
+                      </motion.div>
+                    ),
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="w-full md:w-1/4">
-              <h3 className="text-xl font-semibold mb-4">Question Navigator</h3>
-              <ScrollArea className="h-[300px]">
-                <div className="grid grid-cols-5 gap-2">
-                  {quizResult.questions.map((question, index) => (
-                    <Button
+            </motion.div>
+            <div className='flex justify-between items-center mb-8'>
+              <motion.button
+                onClick={handlePrevQuestion}
+                disabled={currentQuestionIndex === 0}
+                className='p-2 rounded-full bg-gray-200 dark:bg-gray-700 disabled:opacity-50 shadow-md'
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <ChevronLeft size={24} />
+              </motion.button>
+              <div className='flex space-x-2'>
+                {Array.from({ length: quizResult.totalQuestions }).map(
+                  (_, index) => (
+                    <motion.button
                       key={index}
-                      variant="outline"
-                      size="icon"
-                      className={cn(
-                        "w-10 h-10 p-0 transition-colors duration-200 rounded-full",
-                        quizResult.answers[index.toString()] === question.correctAnswer
-                          ? "bg-green-500 hover:bg-green-600 text-white"
-                          : "bg-red-500 hover:bg-red-600 text-white",
-                        currentQuestionIndex === index && "ring-2 ring-primary"
-                      )}
                       onClick={() => setCurrentQuestionIndex(index)}
+                      className={`w-10 h-10 rounded-full shadow-md ${
+                        currentQuestionIndex === index
+                          ? 'bg-gradient-to-r from-green-400 to-blue-500'
+                          : quizResult.answers[index.toString()] ===
+                              quizResult.questions[index].correctAnswer
+                            ? 'bg-green-500'
+                            : quizResult.answers[index.toString()] !== undefined
+                              ? 'bg-red-500'
+                              : 'bg-gray-200 dark:bg-gray-700'
+                      }`}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
                     >
                       {index + 1}
-                    </Button>
-                  ))}
-                </div>
-              </ScrollArea>
+                    </motion.button>
+                  ),
+                )}
+              </div>
+              <motion.button
+                onClick={handleNextQuestion}
+                disabled={
+                  currentQuestionIndex === quizResult.totalQuestions - 1
+                }
+                className='p-2 rounded-full bg-gray-200 dark:bg-gray-700 disabled:opacity-50 shadow-md'
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <ChevronRight size={24} />
+              </motion.button>
+            </div>
+            <div className='flex flex-col sm:flex-row justify-between items-center'>
+              <motion.button
+                onClick={() => router.push('/')}
+                className='px-6 py-3 bg-gray-200 dark:bg-gray-700 rounded-lg shadow-md mb-4 sm:mb-0 w-full sm:w-auto'
+                whileHover={{ scale: 1.05, backgroundColor: '#4A5568' }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Back to Home
+              </motion.button>
+              <div className='flex space-x-4 w-full sm:w-auto'>
+                <motion.button
+                  onClick={handleShare}
+                  className='px-6 py-3 bg-blue-600 rounded-lg shadow-md flex items-center justify-center w-full sm:w-auto'
+                  whileHover={{ scale: 1.05, backgroundColor: '#3182CE' }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Share2 size={20} className='mr-2' /> Share
+                </motion.button>
+                <motion.button
+                  onClick={handleDownload}
+                  className='px-6 py-3 bg-green-600 rounded-lg shadow-md flex items-center justify-center w-full sm:w-auto'
+                  whileHover={{ scale: 1.05, backgroundColor: '#38A169' }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Download size={20} className='mr-2' /> Download
+                </motion.button>
+              </div>
             </div>
           </div>
-          <div className="flex justify-between mt-8">
-            <Button onClick={() => router.push('/')} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Back to Home
-            </Button>
-            <div className="space-x-2">
-              <Button onClick={handleShare} className="bg-blue-500 hover:bg-blue-600 text-white">
-                <Share2 className="mr-2 h-4 w-4" /> Share
-              </Button>
-              <Button onClick={handleDownload} className="bg-green-500 hover:bg-green-600 text-white">
-                <Download className="mr-2 h-4 w-4" /> Download
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        </motion.div>
+      </div>
+    </ClientOnly>
   );
 }
