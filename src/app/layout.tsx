@@ -1,8 +1,7 @@
 import { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import '@/styles/globals.css';
-import { ThemeProvider } from '@/components/theme-provider';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { ThemeProvider } from "next-themes";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,9 +24,6 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <header>
-            <ThemeToggle />
-          </header>
           {children}
         </ThemeProvider>
       </body>

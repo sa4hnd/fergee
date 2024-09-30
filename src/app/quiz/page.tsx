@@ -32,7 +32,6 @@ const motivationalQuotes = [
   "The future belongs to those who believe in the beauty of their dreams."
 ];
 
-
 export default function QuizPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -40,11 +39,30 @@ export default function QuizPage() {
   const year = searchParams.get('year');
   const course = searchParams.get('course');
 
+  const clearQuizLocalStorage = () => {
+    if (subject && year && course) {
+      localStorage.removeItem(`currentQuestionIndex-${subject}-${year}-${course}`);
+      localStorage.removeItem(`quizAnswers-${subject}-${year}-${course}`);
+      localStorage.removeItem(`flaggedQuestions-${subject}-${year}-${course}`);
+      localStorage.removeItem(`quizStarted-${subject}-${year}-${course}`);
+      localStorage.removeItem(`startTime-${subject}-${year}-${course}`);
+    }
+  };
+
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useLocalStorage<number>(`currentQuestionIndex-${subject}-${year}-${course}`, 0);
-  const [answers, setAnswers] = useLocalStorage<{ [key: number]: string }>(`quizAnswers-${subject}-${year}-${course}`, {});
-  const [flaggedQuestions, setFlaggedQuestions] = useLocalStorage<number[]>(`flaggedQuestions-${subject}-${year}-${course}`, []);
-  const [timeLeft, setTimeLeft] = useLocalStorage<number>(`timeLeft-${subject}-${year}-${course}`, 7200); // 2 hours in seconds
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useLocalStorage<number>(
+    `currentQuestionIndex-${subject}-${year}-${course}`,
+    () => (quizStarted ? 0 : -1)
+  );
+  const [answers, setAnswers] = useLocalStorage<{ [key: number]: string }>(
+    `quizAnswers-${subject}-${year}-${course}`,
+    () => (quizStarted ? {} : {})
+  );
+  const [flaggedQuestions, setFlaggedQuestions] = useLocalStorage<number[]>(
+    `flaggedQuestions-${subject}-${year}-${course}`,
+    () => (quizStarted ? [] : [])
+  );
+  const [timeLeft, setTimeLeft] = useState<number>(7200); // 2 hours in seconds
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [quizCompleted, setQuizCompleted] = useState(false);
@@ -67,6 +85,7 @@ export default function QuizPage() {
   useEffect(() => {
     const fetchQuestions = async () => {
       if (subject && year && course) {
+        clearQuizLocalStorage(); // Clear local storage when starting a new quiz
         const q = query(
           collection(db, 'questions'),
           where('subject', '==', subject),
@@ -80,6 +99,10 @@ export default function QuizPage() {
         } as Question));
         setQuestions(fetchedQuestions);
         setIsLoading(false);
+        setQuizStarted(false); // Reset quiz started state
+        setCurrentQuestionIndex(0); // Reset current question index
+        setAnswers({}); // Reset answers
+        setFlaggedQuestions([]); // Reset flagged questions
       }
     };
 
@@ -87,7 +110,7 @@ export default function QuizPage() {
   }, [subject, year, course]);
 
   useEffect(() => {
-    if (quizStarted && startTime) {
+    if (quizStarted && !quizCompleted) {
       const timer = setInterval(() => {
         setTimeLeft((prevTime) => {
           if (prevTime <= 1) {
@@ -101,7 +124,7 @@ export default function QuizPage() {
 
       return () => clearInterval(timer);
     }
-  }, [quizStarted, startTime]);
+  }, [quizStarted, quizCompleted]);
 
   useEffect(() => {
     if (quizCompleted) {
@@ -140,58 +163,80 @@ export default function QuizPage() {
   };
 
   const handleSubmit = async () => {
-    const score = questions.reduce((acc, question, index) => {
-      return acc + (answers[index] === question.correctAnswer ? 1 : 0);
-    }, 0);
+    const endTime = new Date();
+    const timeTaken = startTime ? (endTime.getTime() - new Date(startTime).getTime()) / 1000 : 0;
 
-    const totalQuestions = questions.length;
-    const correctAnswers = score;
+    let correctAnswers = 0;
+    questions.forEach((question, index) => {
+      if (answers[index] === question.correctAnswer) {
+        correctAnswers++;
+      }
+    });
 
-    const quizResult = {
+    const score = (correctAnswers / questions.length) * 100;
+
+    const quizResultData = {
       subject,
       year,
       course,
-      score: Math.round((score / totalQuestions) * 100),
-      totalQuestions,
+      score,
+      totalQuestions: questions.length,
       correctAnswers,
-      date: new Date().toISOString(),
-      timeTaken: 7200 - timeLeft,
-      answers
+      timeTaken,
+      date: new Date(),
+      answers,
+      questions: questions.map(q => ({
+        id: q.id,
+        text: q.text,
+        options: q.options,
+        correctAnswer: q.correctAnswer
+      }))
     };
 
     try {
-      const docRef = await addDoc(collection(db, 'quizResults'), quizResult);
-      setQuizResults({
-        score: Math.round((score / totalQuestions) * 100),
-        totalQuestions,
-        correctAnswers
-      });
-      setQuizCompleted(true);
+      const docRef = await addDoc(collection(db, 'quizResults'), quizResultData);
       setIsSubmitted(true);
+      setQuizCompleted(true);
+      setQuizResults({
+        score,
+        totalQuestions: questions.length,
+        correctAnswers,
+      });
 
-      // Clear local storage after successful submission
-      localStorage.removeItem(`currentQuestionIndex-${subject}-${year}-${course}`);
-      localStorage.removeItem(`quizAnswers-${subject}-${year}-${course}`);
-      localStorage.removeItem(`flaggedQuestions-${subject}-${year}-${course}`);
-      localStorage.removeItem(`timeLeft-${subject}-${year}-${course}`);
-      localStorage.removeItem(`quizStarted-${subject}-${year}-${course}`);
-      localStorage.removeItem(`startTime-${subject}-${year}-${course}`);
+      // Clear local storage
+      clearQuizLocalStorage();
 
-      router.push(`/quiz-result?id=${docRef.id}`);
+      // Show confetti
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+
+      // Navigate to the quiz result page after a short delay
+      setTimeout(() => {
+        router.push(`/quiz-result?id=${docRef.id}`);
+      }, 3000);
     } catch (error) {
       console.error("Error submitting quiz: ", error);
+      // Handle error (e.g., show an error message to the user)
     }
   };
 
   const startQuiz = () => {
     setQuizStarted(true);
+    setTimeLeft(7200); // Reset the timer to 2 hours when starting the quiz
     setStartTime(new Date().toISOString());
+    setCurrentQuestionIndex(0);
+    setAnswers({});
+    setFlaggedQuestions([]);
   };
 
   const formatTime = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   if (isLoading) {
